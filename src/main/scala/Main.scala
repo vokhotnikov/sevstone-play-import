@@ -1,8 +1,4 @@
-import org.slf4j.LoggerFactory
-
-object Main extends App {
-  def log = LoggerFactory.getLogger("ImportTool")
+object Main extends App with Logging {
   println("It's alive!")
-
   log info "All done"
 }
