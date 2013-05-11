@@ -1,4 +1,4 @@
-package source
+package destination
 
 import scala.slick.driver.PostgresDriver.simple._
 
