@@ -2,7 +2,7 @@ package source
 
 import scala.slick.driver.MySQLDriver.simple._
 
-case class LegacyExposition(id: Int, parentId: Option[Int], name: String, description: String, weight: Int)
+case class LegacyExposition(id: Int, parentId: Option[Int], name: String, description: String, weight: Int) extends LegacyHierarchicalEntity
 
 object LegacyExpositions extends Table[LegacyExposition]("item_expo") {
   def id = column[Int]("id", O.PrimaryKey)

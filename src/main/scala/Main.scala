@@ -1,46 +1,65 @@
-import source._
-import destination._
-
 import scala.slick.driver.PostgresDriver
+import destination.DepositsPlaces
+import destination.Expositions
+import destination.NewDepositsPlace
+import destination.NewExposition
+import destination.TargetDatabase
+import source.LegacyCategories
+import source.LegacyDatabase
+import source.LegacyDepositsPlaces
+import source.LegacyExposition
+import source.LegacyExpositions
+import source.LegacyHierarchicalEntity
+import source.LegacyCategory
+import destination.NewCategory
+import destination.NewCategory
+import destination.Categories
 
 object Main extends App with Logging {
-  def insertExpositions(legacyExpos: List[LegacyExposition], idMap: Map[Int, Option[Long]])(implicit session: PostgresDriver.simple.Session): List[Long] = {
-    if (legacyExpos.length == 0) List() else {
-      val (toInsert, toDefer) = legacyExpos partition { l => l.parentId map { idMap contains _ } getOrElse true }
-      val inserted = toInsert map { l =>
-        val parentId = l.parentId match {
-          case None => None
-          case Some(p) => idMap.get(p).getOrElse(None)
+    def insertExpositions[TLegacy <: LegacyHierarchicalEntity, TNew](legacyExpos: List[TLegacy],
+        idMap: Map[Int, Option[Long]], conversion: (Option[Long], TLegacy) => TNew,
+        inserter: (TNew) => Long)(implicit session: PostgresDriver.simple.Session): List[Long] = {
+        if (legacyExpos.length == 0) List() else {
+            val (toInsert, toDefer) = legacyExpos partition { l => l.parentId map { idMap contains _ } getOrElse true }
+            val inserted = toInsert map { l =>
+                val parentId = l.parentId match {
+                    case None => None
+                    case Some(p) => idMap.get(p).getOrElse(None)
+                }
+
+                (conversion(parentId, l), l.id)
+            } map { tuple =>
+                val (nv, legacyId) = tuple
+                val id = inserter(nv)
+                (legacyId, id)
+            }
+
+            val mapToAdd = inserted map { t => (t._1, Some(t._2)) }
+
+            inserted.map { _._2 } ++ insertExpositions(toDefer, idMap ++ mapToAdd.toMap, conversion, inserter)
         }
-
-        (NewExposition(parentId, l.name, l.description, l.weight), l.id)
-      } map { tuple =>
-        val (nv, legacyId) = tuple
-        val id = Expositions add nv
-        (legacyId, id)
-      }
-
-      val mapToAdd = inserted map { t => (t._1, Some(t._2)) }
-
-      inserted.map{ _._2 } ++ insertExpositions(toDefer, idMap ++ mapToAdd.toMap)
     }
-  }
 
-  val (depositsPlaces, expositions) = LegacyDatabase withSession { source => (
-    LegacyDepositsPlaces.findAll(source),
-    LegacyExpositions.findAll(source)
-  )}
+    val (depositsPlaces, expositions, categories) = LegacyDatabase withSession { source =>
+        (
+            LegacyDepositsPlaces.findAll(source),
+            LegacyExpositions.findAll(source),
+            LegacyCategories.findAll(source))
+    }
 
-  TargetDatabase withSession { implicit target =>
-    Expositions.deleteAll
-    DepositsPlaces.deleteAll
+    TargetDatabase withSession { implicit target =>
+        Expositions.deleteAll
+        DepositsPlaces.deleteAll
 
-    depositsPlaces map { l =>
-      NewDepositsPlace(l.name, l.description)
-      } foreach { DepositsPlaces add _ }
+        depositsPlaces map { l => NewDepositsPlace(l.name, l.description) } foreach { DepositsPlaces add _ }
 
-      insertExpositions(expositions, Map(0 -> None))
-  }
+        val expoConverter = (parentId: Option[Long], l: LegacyExposition) => NewExposition(parentId, l.name, l.description, l.weight)
+        insertExpositions(expositions, Map(0 -> None), expoConverter, (nl: NewExposition) => Expositions.add(nl))
+        
+        val catConverter = (parentId: Option[Long], l: LegacyCategory) => NewCategory(parentId, l.name, !l.showOnSite, l.weight)
+        insertExpositions(categories, Map(0 -> None), catConverter, (nl: NewCategory) => Categories.add(nl))
 
-  log info "All done"
+    }
+
+    log info "All done"
 }
