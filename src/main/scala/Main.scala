@@ -16,8 +16,8 @@ import destination.NewCategory
 import destination.Categories
 
 object Main extends App with Logging {
-    def insertExpositions[TLegacy <: LegacyHierarchicalEntity, TNew](legacyExpos: List[TLegacy],
-        idMap: Map[Int, Option[Long]], conversion: (Option[Long], TLegacy) => TNew,
+    def insertHierarchy[TLegacy <: LegacyHierarchicalEntity, TNew](legacyExpos: List[TLegacy], 
+        idMap: Map[Int, Option[Long]], conversion: (Option[Long], TLegacy) => TNew, 
         inserter: (TNew) => Long)(implicit session: PostgresDriver.simple.Session): List[Long] = {
         if (legacyExpos.length == 0) List() else {
             val (toInsert, toDefer) = legacyExpos partition { l => l.parentId map { idMap contains _ } getOrElse true }
@@ -36,7 +36,7 @@ object Main extends App with Logging {
 
             val mapToAdd = inserted map { t => (t._1, Some(t._2)) }
 
-            inserted.map { _._2 } ++ insertExpositions(toDefer, idMap ++ mapToAdd.toMap, conversion, inserter)
+            inserted.map { _._2 } ++ insertHierarchy(toDefer, idMap ++ mapToAdd.toMap, conversion, inserter)
         }
     }
 
@@ -54,10 +54,10 @@ object Main extends App with Logging {
         depositsPlaces map { l => NewDepositsPlace(l.name, l.description) } foreach { DepositsPlaces add _ }
 
         val expoConverter = (parentId: Option[Long], l: LegacyExposition) => NewExposition(parentId, l.name, l.description, l.weight)
-        insertExpositions(expositions, Map(0 -> None), expoConverter, (nl: NewExposition) => Expositions.add(nl))
+        insertHierarchy(expositions, Map(0 -> None), expoConverter, (nl: NewExposition) => Expositions.add(nl))
         
         val catConverter = (parentId: Option[Long], l: LegacyCategory) => NewCategory(parentId, l.name, !l.showOnSite, l.weight)
-        insertExpositions(categories, Map(0 -> None), catConverter, (nl: NewCategory) => Categories.add(nl))
+        insertHierarchy(categories, Map(0 -> None), catConverter, (nl: NewCategory) => Categories.add(nl))
 
     }
 
