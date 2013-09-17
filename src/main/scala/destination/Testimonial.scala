@@ -1,8 +1,12 @@
 package destination
 
-import scala.slick.driver.PostgresDriver.simple._
-import java.sql.Date
 import java.sql.Timestamp
+
+import scala.slick.driver.PostgresDriver.simple.Query
+import scala.slick.driver.PostgresDriver.simple.Session
+import scala.slick.driver.PostgresDriver.simple.Table
+import scala.slick.driver.PostgresDriver.simple.columnBaseToInsertInvoker
+import scala.slick.driver.PostgresDriver.simple.queryToDeleteInvoker
 
 case class Testimonial(authorName: String, authorEmail: Option[String], text: String, addedAt: Timestamp, isApproved: Boolean, id: Option[Long] = None)
 case class NewTestimonial(authorName: String, authorEmail: Option[String], text: String, addedAt: Timestamp, isApproved: Boolean)

@@ -18,6 +18,11 @@ import source.LegacyTestimonials
 import destination.Testimonials
 import destination.Testimonial
 import destination.NewTestimonial
+import source.LegacyArticles
+import destination.Images
+import destination.NewImage
+import destination.Articles
+import destination.NewArticle
 
 object Main extends App with Logging {
     def insertHierarchy[TLegacy <: LegacyHierarchicalEntity, TNew](legacyExpos: List[TLegacy], 
@@ -44,12 +49,13 @@ object Main extends App with Logging {
         }
     }
 
-    val (depositsPlaces, expositions, categories, testimonials) = LegacyDatabase withSession { source =>
+    val (depositsPlaces, expositions, categories, testimonials, articles) = LegacyDatabase withSession { source =>
         (
             LegacyDepositsPlaces.findAll(source),
             LegacyExpositions.findAll(source),
             LegacyCategories.findAll(source),
-            LegacyTestimonials.findAll(source))
+            LegacyTestimonials.findAll(source),
+            LegacyArticles.findAll(source))
     }
 
     TargetDatabase withSession { implicit target =>
@@ -57,12 +63,18 @@ object Main extends App with Logging {
         DepositsPlaces.deleteAll
         Categories.deleteAll
         Testimonials.deleteAll
+        Images.deleteAll
+        Articles.deleteAll
 
         depositsPlaces map { l => NewDepositsPlace(l.name, l.description) } foreach { DepositsPlaces add _ }
         
-        testimonials map { 
-          t => NewTestimonial(t.authorName, t.authorEmail, t.text, t.addedAt, t.isApproved) 
-        } foreach { Testimonials add _ }
+        testimonials map { t => NewTestimonial(t.authorName, t.authorEmail, t.text, t.addedAt, t.isApproved) } foreach { Testimonials add _ }
+        
+        articles map (a => (NewImage(a.imageUrl, a.addedAt), a)) map { p =>
+          val (i, a) = p
+          val imageId = Images add i
+          NewArticle(a.title, a.summary, a.text, imageId, a.addedAt)
+        } foreach { Articles add _ }
 
         val expoConverter = (parentId: Option[Long], l: LegacyExposition) => NewExposition(parentId, l.name, l.description, l.weight)
         insertHierarchy(expositions, Map(0 -> None), expoConverter, (nl: NewExposition) => Expositions.add(nl))
