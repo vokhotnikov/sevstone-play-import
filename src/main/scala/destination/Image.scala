@@ -4,7 +4,7 @@ import scala.slick.driver.PostgresDriver.simple._
 import java.sql.Timestamp
 
 case class Image(imageUrl: String, addedAt: Timestamp, id: Option[Long] = None)
-case class NewImage(imageUrl: String, addedAt: Timestamp)
+case class NewImage(imageUrl: String, addedAt: Timestamp = new Timestamp(new java.util.Date().getTime()))
 
 
 object Images extends Table[Image]("images") {
